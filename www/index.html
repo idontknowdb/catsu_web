@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CAT SURVIVOR 2D 🐱</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="hud">
+  <div class="hud-left">
+    <div class="hp-text">HP</div>
+    <div class="hp-bar-outer"><div class="hp-bar-inner" id="hpBar" style="width:100%"></div></div>
+    <div class="xp-bar-outer"><div class="xp-bar-inner" id="xpBar" style="width:0%"></div></div>
+    <div class="level-badge" id="levelText">Lv.1</div>
+    <div class="combo-icons" id="comboIcons"></div>
+  </div>
+  <div class="hud-right">
+    <div class="kill-count">🐟 <span id="killText">0</span></div>
+    <div class="wave-text" id="waveText">WAVE 1</div>
+    <div class="timer-text" id="timerText">00:00</div>
+    <button class="mobile-pause-btn" id="mobilePauseBtn" onclick="togglePause()">⏸</button>
+  </div>
+  <div class="extra-life-hud hidden" id="extraLifeHud"></div>
+  <div class="stage-bar" id="stageBar">
+    <div class="stage-bar-fill" id="stageBarFill"></div>
+    <div class="stage-bar-text" id="stageBarText"></div>
+  </div>
+</div>
+
+<div class="ult-indicator hidden" id="ultIndicator" onclick="triggerUlt()">
+  <span class="ult-icon" id="ultIcon"></span>
+  <span class="ult-cd" id="ultCd"></span>
+</div>
+
+<div class="boss-hp-container" id="bossHpBar">
+  <div class="boss-name" id="bossName"></div>
+  <div class="boss-hp-outer"><div class="boss-hp-inner" id="bossHpInner" style="width:100%"></div></div>
+</div>
+<div class="boss-announce" id="bossAnnounce"></div>
+<div class="map-announce" id="mapAnnounce">
+  <span class="map-icon" id="mapIcon"></span>
+  <span class="map-name" id="mapName"></span>
+  <span class="map-desc" id="mapDesc"></span>
+</div>
+
+<div id="cardOverlay">
+  <div class="card-container">
+    <div class="card-title">🎴 업그레이드!</div>
+    <div class="card-subtitle">하나를 선택하세요</div>
+    <div class="cards" id="cardSlots"></div>
+  </div>
+</div>
+
+<!-- Test Mode Card Picker -->
+<div id="testCardOverlay" style="display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,0.85);overflow-y:auto;padding:10px">
+  <div style="text-align:center;color:#fff;font-size:18px;font-weight:bold;padding:8px 0">🧪 카드 선택 (클릭하여 적용)</div>
+  <div id="testCardTabs" style="display:flex;gap:4px;justify-content:center;flex-wrap:wrap;margin-bottom:8px"></div>
+  <div id="testCardList" style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center"></div>
+  <button onclick="closeTestCards()" style="display:block;margin:12px auto;padding:8px 24px;background:#444;color:#fff;border:none;border-radius:8px;font-size:14px">닫기 (게임으로)</button>
+</div>
+
+<!-- Touch Controls (mobile only) — right-side hub -->
+<div class="touch-controls" id="touchControls">
+  <div class="pad-hub">
+    <div class="pad-ring"></div>
+    <div class="joystick-zone" id="joystickZone">
+      <div class="joystick-base">
+        <div class="joystick-knob" id="joystickKnob"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="float-joystick" id="floatJoystick">
+  <div class="joystick-base">
+    <div class="joystick-knob" id="floatKnob"></div>
+  </div>
+</div>
+
+<!-- Pause Menu -->
+<div class="pause-overlay" id="pauseOverlay">
+  <div class="pause-title">⏸ 일시정지</div>
+  <button class="pause-btn primary" onclick="resumeGame()">▶ 계속하기</button>
+  <button class="pause-btn" id="testCardBtn" style="display:none;background:#ff4444" onclick="showTestCards()">🧪 카드 선택</button>
+  <button class="pause-btn" onclick="restartFromPause()">🔄 재시작</button>
+  <button class="pause-btn" onclick="goToMainMenu()">🏠 메인으로</button>
+  <div class="vol-row"><span class="vol-icon" id="volIcon" onclick="toggleMute()">🔊</span> <span>음량</span> <input type="range" id="volSlider" min="0" max="100" value="50" oninput="setVolume(this.value)"></div>
+  <div class="vol-row"><span class="vol-icon">🎵</span> <span>BGM</span> <input type="range" id="bgmSlider" min="0" max="100" value="30" oninput="setBgmVolume(this.value)"></div>
+  <div class="pad-setting" id="padSetting">
+    <span class="vol-icon">🕹️</span> <span>조이스틱</span>
+    <div class="pad-options">
+      <button class="pad-opt" data-pad="left" onclick="setPadMode('left')">왼쪽</button>
+      <button class="pad-opt active" data-pad="right" onclick="setPadMode('right')">오른쪽</button>
+      <button class="pad-opt" data-pad="float" onclick="setPadMode('float')">플로팅</button>
+    </div>
+  </div>
+  <div class="vol-row"><span class="vol-icon">⚡</span> <span>궁극기</span>
+    <div class="pad-options">
+      <button class="pad-opt active" data-ult="auto" onclick="setUltMode('auto')">자동</button>
+      <button class="pad-opt" data-ult="manual" onclick="setUltMode('manual')">수동</button>
+    </div>
+  </div>
+  <div class="vol-row"><span class="vol-icon">📳</span> <span>진동</span>
+    <div class="pad-options">
+      <button class="pad-opt active" data-vib="on" onclick="setVibration(true)">켜기</button>
+      <button class="pad-opt" data-vib="off" onclick="setVibration(false)">끄기</button>
+    </div>
+  </div>
+  <div class="pause-build-info" id="pauseBuildInfo"></div>
+</div>
+
+<!-- Mobile pause button is inside hud-right -->
+
+<div class="overlay" id="startOverlay">
+  <div class="main-hero">
+    <div class="main-cat-glow"></div>
+    <div class="overlay-cat">🐱</div>
+  </div>
+  <div class="main-title-group">
+    <div class="overlay-title">CAT SURVIVOR</div>
+    <div class="overlay-title-sub">2D ROGUELIKE</div>
+  </div>
+  <div class="overlay-sub desktop-hint">WASD 이동 · 자동 공격 · 카드 강화 · Wave 50 클리어!</div>
+  <div class="overlay-sub mobile-hint">조이스틱 이동 · 자동 공격 · Wave 50을 향해 도전!</div>
+  <div class="main-currency" id="mainCurrency"></div>
+  <div class="color-select" id="colorSelect"></div>
+  <div class="mode-select">
+    <button class="mode-opt active" data-mode="normal" onclick="setGameMode('normal')">🐱 일반</button>
+    <button class="mode-opt" data-mode="hard" onclick="setGameMode('hard')">💀 하드</button>
+    <button class="mode-opt locked" data-mode="endless" onclick="setGameMode('endless')" id="endlessBtn">♾️ 엔드리스 <span class="mode-lock">🔒</span></button>
+    <button class="mode-opt" data-mode="daily" onclick="setGameMode('daily')">📅 일일</button>
+    <button class="mode-opt locked" data-mode="bossrush" onclick="setGameMode('bossrush')" id="bossrushBtn">⚔️ 보스러시 <span class="mode-lock">🔒</span></button>
+  </div>
+  <div class="daily-info hidden" id="dailyInfo"></div>
+  <!-- <button class="sub-btn sub-btn-purple" onclick="showCardConfig()" style="margin-bottom:4px">🎴 카드 설정</button> -->
+  <button class="overlay-btn start-btn" onclick="startGame()">
+    <span class="start-btn-text">시작하다냥!</span>
+    <span class="start-btn-paw">🐾</span>
+  </button>
+  <div class="record-text" id="startRecords"></div>
+  <div class="main-menu-grid">
+    <button class="menu-card" onclick="showUpgradeShop()">
+      <span class="menu-card-icon">🔧</span>
+      <span class="menu-card-label">강화 상점</span>
+    </button>
+    <button class="menu-card" onclick="showCardCodex()">
+      <span class="menu-card-icon">📖</span>
+      <span class="menu-card-label">카드 도감</span>
+    </button>
+    <button class="menu-card" onclick="showProgression()">
+      <span class="menu-card-icon">🏆</span>
+      <span class="menu-card-label">업적</span>
+    </button>
+    <button class="menu-card" onclick="showSettings()">
+      <span class="menu-card-icon">⚙️</span>
+      <span class="menu-card-label">설정</span>
+    </button>
+  </div>
+</div>
+
+<!-- Progression Overlay -->
+<div class="overlay hidden" id="progressionOverlay">
+  <div class="prog-title">📈 성장 현황</div>
+  <div class="prog-body" id="progressionBody"></div>
+  <button class="overlay-btn codex-close-btn" onclick="hideProgression()">닫기</button>
+</div>
+
+<!-- Settings Overlay -->
+<div class="overlay hidden" id="settingsOverlay">
+  <div class="settings-title" onclick="onSettingsTitleClick()">⚙️ 설정</div>
+  <button class="overlay-btn hidden" id="testModeBtn" onclick="startTestMode()" style="background:#ff4444;margin:8px auto;display:none;font-size:14px;padding:6px 18px">🧪 테스트 모드</button>
+  <div class="settings-body">
+    <div class="vol-row"><span class="vol-icon" id="settVolIcon" onclick="toggleMute(); updateSettingsIcons()">🔊</span> <span>음량</span> <input type="range" id="settVolSlider" min="0" max="100" value="50" oninput="setVolume(this.value); syncSliders()"></div>
+    <div class="vol-row"><span class="vol-icon">🎵</span> <span>BGM</span> <input type="range" id="settBgmSlider" min="0" max="100" value="30" oninput="setBgmVolume(this.value); syncSliders()"></div>
+    <div class="pad-setting" id="settPadSetting">
+      <span class="vol-icon">🕹️</span> <span>조이스틱</span>
+      <div class="pad-options">
+        <button class="pad-opt" data-pad="left" onclick="setPadMode('left')">왼쪽</button>
+        <button class="pad-opt active" data-pad="right" onclick="setPadMode('right')">오른쪽</button>
+        <button class="pad-opt" data-pad="float" onclick="setPadMode('float')">플로팅</button>
+      </div>
+    </div>
+    <div class="vol-row"><span class="vol-icon">⚡</span> <span>궁극기</span>
+      <div class="pad-options">
+        <button class="pad-opt active" data-ult="auto" onclick="setUltMode('auto')">자동</button>
+        <button class="pad-opt" data-ult="manual" onclick="setUltMode('manual')">수동</button>
+      </div>
+    </div>
+    <div class="vol-row"><span class="vol-icon">📳</span> <span>진동</span>
+      <div class="pad-options">
+        <button class="pad-opt active" data-vib="on" onclick="setVibration(true)">켜기</button>
+        <button class="pad-opt" data-vib="off" onclick="setVibration(false)">끄기</button>
+      </div>
+    </div>
+    <div class="vol-row"><span class="vol-icon">👻</span> <span>30W+ 몹 반투명</span>
+      <div class="pad-options">
+        <button class="pad-opt" data-mobfade="on" onclick="setMobFade(true)">켜기</button>
+        <button class="pad-opt active" data-mobfade="off" onclick="setMobFade(false)">끄기</button>
+      </div>
+    </div>
+    <div class="vol-row"><span class="vol-icon">🔴</span> <span>보스공격 빨간색</span>
+      <div class="pad-options">
+        <button class="pad-opt" data-bossred="on" onclick="setBossRed(true)">켜기</button>
+        <button class="pad-opt active" data-bossred="off" onclick="setBossRed(false)">끄기</button>
+      </div>
+    </div>
+  </div>
+  <button class="overlay-btn codex-close-btn" onclick="hideSettings()">닫기</button>
+</div>
+
+<!-- Upgrade Shop Overlay -->
+<div class="overlay hidden" id="upgradeOverlay">
+  <div class="shop-header">
+    <div class="shop-title">🔧 강화 상점</div>
+    <div class="shop-currency" id="shopCurrency">🐟 0</div>
+  </div>
+  <div class="shop-body" id="shopBody"></div>
+  <div class="shop-footer">
+    <button class="sub-btn sub-btn-red" onclick="resetUpgrades()">🔄 초기화</button>
+    <button class="overlay-btn codex-close-btn" onclick="hideUpgradeShop()">닫기</button>
+  </div>
+</div>
+
+<div class="overlay hidden" id="cardCodexOverlay">
+  <div class="codex-header">
+    <div class="codex-title">📖 카드 도감</div>
+    <div class="codex-tabs" id="codexTabs"></div>
+  </div>
+  <div class="codex-body" id="codexBody"></div>
+  <button class="overlay-btn codex-close-btn" onclick="hideCardCodex()">닫기</button>
+</div>
+
+<div class="overlay hidden" id="gameOverOverlay">
+  <div class="overlay-cat" style="filter:grayscale(.5)">😿</div>
+  <div class="overlay-title" style="background:linear-gradient(135deg,#ef4444,#f97316);-webkit-background-clip:text">GAME OVER</div>
+  <div class="new-record hidden" id="goNewRecord">🏆 NEW RECORD!</div>
+  <div class="go-stats">
+    <div><span class="label">웨이브</span><span class="val" id="goWave">1</span></div>
+    <div><span class="label">처치</span><span class="val" id="goKills">0</span></div>
+    <div><span class="label">레벨</span><span class="val" id="goLevel">1</span></div>
+    <div><span class="label">시간</span><span class="val" id="goTime">0:00</span></div>
+  </div>
+  <div class="win-cards" id="goCards"></div>
+  <div class="currency-earned"><span id="goEarned"></span> <span class="currency-total" id="goTotal"></span></div>
+  <button class="overlay-btn" onclick="restartGame()">다시하다냥! 🐾</button>
+  <button class="sub-btn sub-btn-gray" onclick="goToMainFromResult('gameOverOverlay')">🏠 메인으로</button>
+</div>
+
+<div class="overlay hidden" id="winOverlay">
+  <div class="overlay-cat">😻</div>
+  <div class="overlay-title" style="background:linear-gradient(135deg,#fbbf24,#34d399);-webkit-background-clip:text">VICTORY!</div>
+  <div class="overlay-sub">Wave 50 클리어! 냥이 세계를 구했다!</div>
+  <div class="new-record hidden" id="winNewRecord">🏆 NEW RECORD!</div>
+  <div class="go-stats">
+    <div><span class="label">처치</span><span class="val" id="winKills">0</span></div>
+    <div><span class="label">레벨</span><span class="val" id="winLevel">1</span></div>
+    <div><span class="label">시간</span><span class="val" id="winTime">0:00</span></div>
+  </div>
+  <div class="win-cards" id="winCards"></div>
+  <div class="currency-earned"><span id="winEarned"></span> <span class="currency-total" id="winTotal"></span></div>
+  <button class="overlay-btn" onclick="restartFromWin()">다시하다냥! 🐾</button>
+  <button class="sub-btn sub-btn-gray" onclick="goToMainFromResult('winOverlay')">🏠 메인으로</button>
+</div>
+
+<div class="overlay hidden" id="cardConfigOverlay">
+  <div class="config-header">
+    <div class="config-title">🎴 카드 설정</div>
+    <div class="config-subtitle">밴 3장, 시작 카드 1장 선택</div>
+  </div>
+  <div class="config-status">
+    <span id="banCount">밴: 0/3</span>
+    <span id="starterStatus">시작 카드: 미선택</span>
+  </div>
+  <div class="config-tabs" id="configTabs"></div>
+  <div class="config-body" id="configBody"></div>
+  <div class="config-footer">
+    <button class="sub-btn sub-btn-red" onclick="resetCardConfig()">🔄 초기화</button>
+    <button class="overlay-btn codex-close-btn" onclick="hideCardConfig()">확인</button>
+  </div>
+</div>
+
+<div class="controls-hint">WASD 이동 · 자동 공격 · Wave 50 클리어!</div>
+<script src="js/game.js"></script>
+</body>
+</html>
